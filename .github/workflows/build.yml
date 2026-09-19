@@ -9,13 +9,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Rebuild project layout
+        run: |
+          mkdir -p android/app/src/main/java/com/example/pcaudio
+          mv AndroidManifest.xml android/app/src/main/
+          mv AudioStreamService.kt MainActivity.kt StreamState.kt android/app/src/main/java/com/example/pcaudio/
+          mv settings.gradle.kts gradle.properties android/
+          for f in build.gradle.kts "build.gradle (1).kts"; do
+            [ -f "$f" ] || continue
+            if grep -q 'apply false' "$f"; then
+              mv "$f" android/build.gradle.kts
+            else
+              mv "$f" android/app/build.gradle.kts
+            fi
+          done
+          find android -type f
+
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: "8.9" }
+
       - name: Build debug APK
         working-directory: android
         run: gradle assembleDebug --no-daemon
+
       - uses: actions/upload-artifact@v4
         with:
           name: pc-audio-apk
