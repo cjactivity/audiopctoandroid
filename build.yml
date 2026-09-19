@@ -1,0 +1,60 @@
+name: Build APK and PC sender
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: "8.9" }
+      - name: Build debug APK
+        working-directory: android
+        run: gradle assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pc-audio-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+  windows-sender:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Get opus.dll
+        run: vcpkg install opus:x64-windows
+      - name: Build exe
+        working-directory: pc_sender
+        shell: pwsh
+        run: |
+          pip install -r requirements.txt pyinstaller
+          pyinstaller --onefile --name pc-audio-sender --collect-all soundcard --add-binary "C:\vcpkg\installed\x64-windows\bin\opus.dll;." sender.py
+          dist\pc-audio-sender.exe --selftest
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pc-audio-sender-windows
+          path: pc_sender/dist/pc-audio-sender.exe
+
+  linux-sender:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: sudo apt-get install -y libopus0 libpulse0
+      - name: Build binary
+        working-directory: pc_sender
+        run: |
+          pip install -r requirements.txt pyinstaller
+          pyinstaller --onefile --name pc-audio-sender --collect-all soundcard --add-binary "/lib/x86_64-linux-gnu/libopus.so.0:." sender.py
+          dist/pc-audio-sender --selftest
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pc-audio-sender-linux
+          path: pc_sender/dist/pc-audio-sender
